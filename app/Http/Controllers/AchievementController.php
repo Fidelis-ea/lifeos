@@ -12,7 +12,7 @@ class AchievementController extends Controller
     {
         $user = auth()->user();
 
-        // Let's check/update achievements for this user programmatically so it updates live
+        // Check/update achievements
         $this->checkAchievements($user);
 
         $unlocked = $user->achievements()->withPivot('unlocked_at')->get();
@@ -20,7 +20,6 @@ class AchievementController extends Controller
         $allAchievements = Achievement::all();
         $locked = $allAchievements->whereNotIn('id', $unlockedIds);
 
-        // Calculate statistics
         $unlockedCount = $unlocked->count();
         $totalCount = $allAchievements->count();
         $totalXp = $user->xp;
@@ -31,61 +30,46 @@ class AchievementController extends Controller
 
     private function checkAchievements($user): void
     {
-        // 1. First Entry check
+        // Pre-load all achievements and user's unlocked IDs in bulk (2 queries)
+        $allAchievements = Achievement::all()->keyBy('name');
+        $unlockedIds = UserAchievement::where('user_id', $user->id)
+            ->pluck('achievement_id')
+            ->flip();
+
+        // Gather stats in minimal queries
         $hasCheckin = \App\Models\DailyEntry::where('user_id', $user->id)->exists();
-        if ($hasCheckin) {
-            $this->unlock($user, 'First Entry');
-        }
-
-        // 2. 7 Day Streak / 30 Day Streak
         $maxStreak = \App\Models\Habit::where('user_id', $user->id)->max('longest_streak') ?? 0;
-        if ($maxStreak >= 7) {
-            $this->unlock($user, '7 Day Streak');
-        }
-        if ($maxStreak >= 30) {
-            $this->unlock($user, '30 Day Streak');
-        }
-
-        // 3. Code Warrior
         $totalCodingMinutes = \App\Models\DailyEntry::where('user_id', $user->id)->sum('coding_minutes');
-        if ($totalCodingMinutes >= 600) { // 10 hours
-            $this->unlock($user, 'Code Warrior');
-        }
-        if ($totalCodingMinutes >= 6000) { // 100 hours
-            $this->unlock($user, '100 Hours Coding');
-        }
-
-        // 4. Project Builder
         $completedProjects = \App\Models\Project::where('user_id', $user->id)->where('status', 'completed')->count();
-        if ($completedProjects >= 1) {
-            $this->unlock($user, 'Builder');
-        }
-        if ($completedProjects >= 5) {
-            $this->unlock($user, 'Project Builder');
-        }
-    }
 
-    private function unlock($user, $achievementName): void
-    {
-        $achievement = Achievement::where('name', $achievementName)->first();
-        if (!$achievement) return;
+        // Check each achievement without per-achievement DB lookups
+        $toUnlock = [];
 
-        $exists = UserAchievement::where('user_id', $user->id)
-            ->where('achievement_id', $achievement->id)
-            ->exists();
+        if ($hasCheckin) $toUnlock[] = 'First Entry';
+        if ($maxStreak >= 7) $toUnlock[] = '7 Day Streak';
+        if ($maxStreak >= 30) $toUnlock[] = '30 Day Streak';
+        if ($totalCodingMinutes >= 600) $toUnlock[] = 'Code Warrior';
+        if ($totalCodingMinutes >= 6000) $toUnlock[] = '100 Hours Coding';
+        if ($completedProjects >= 1) $toUnlock[] = 'Builder';
+        if ($completedProjects >= 5) $toUnlock[] = 'Project Builder';
 
-        if (!$exists) {
+        // Batch-unlock all new achievements
+        $xpGained = 0;
+        foreach ($toUnlock as $name) {
+            $achievement = $allAchievements[$name] ?? null;
+            if (!$achievement) continue;
+            if (isset($unlockedIds[$achievement->id])) continue;
+
             UserAchievement::create([
                 'user_id' => $user->id,
                 'achievement_id' => $achievement->id,
                 'unlocked_at' => today(),
             ]);
+            $xpGained += 250;
+        }
 
-            // Add XP and handle leveling up
-            $xpAwarded = 250; // default XP per achievement
-            $user->xp += $xpAwarded;
-            
-            // Basic level up algorithm: level = floor(xp / 1000) + 1
+        if ($xpGained > 0) {
+            $user->xp += $xpGained;
             $newLevel = floor($user->xp / 1000) + 1;
             if ($newLevel > $user->level) {
                 $user->level = $newLevel;

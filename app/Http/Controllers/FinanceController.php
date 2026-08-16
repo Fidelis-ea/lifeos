@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Transaction;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class FinanceController extends Controller
 {
@@ -15,21 +16,27 @@ class FinanceController extends Controller
             ->orderByDesc('created_at')
             ->paginate(15);
 
-        // Statistics
-        $income = Transaction::where('user_id', $user->id)->where('type', 'income')->sum('amount');
-        $expense = Transaction::where('user_id', $user->id)->where('type', 'expense')->sum('amount');
+        // Single query for income/expense totals instead of 2 separate queries
+        $totals = Transaction::where('user_id', $user->id)
+            ->selectRaw("
+                COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income,
+                COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expense
+            ")
+            ->first();
+
+        $income = $totals->income;
+        $expense = $totals->expense;
         $balance = $income - $expense;
 
-        // Group expense by category for current month
-        $monthlyExpenses = Transaction::where('user_id', $user->id)
+        // Monthly expense by category — use DB aggregation instead of PHP
+        $expenseByCategory = Transaction::where('user_id', $user->id)
             ->where('type', 'expense')
             ->whereMonth('date', today()->month)
             ->whereYear('date', today()->year)
-            ->get();
-
-        $expenseByCategory = $monthlyExpenses->groupBy('category')->map(function ($group) {
-            return $group->sum('amount');
-        })->toArray();
+            ->selectRaw('category, SUM(amount) as total')
+            ->groupBy('category')
+            ->pluck('total', 'category')
+            ->toArray();
 
         return view('finance.index', compact('transactions', 'income', 'expense', 'balance', 'expenseByCategory'));
     }

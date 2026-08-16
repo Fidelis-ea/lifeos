@@ -12,21 +12,35 @@ class HabitController extends Controller
     public function index()
     {
         $user = auth()->user();
+        $today = today();
+
         $habits = Habit::where('user_id', $user->id)
             ->where('is_active', true)
             ->orderBy('order')
+            ->get();
+
+        // Bulk-load today's completed habit IDs (1 query instead of N)
+        $completedTodayIds = HabitLog::whereIn('habit_id', $habits->pluck('id'))
+            ->where('date', $today->toDateString())
+            ->where('completed', true)
+            ->pluck('habit_id')
+            ->flip();
+
+        // Bulk-load last 30 days logs for all habits (1 query instead of N)
+        $last30Days = today()->subDays(29)->toDateString();
+        $allLogs = HabitLog::whereIn('habit_id', $habits->pluck('id'))
+            ->where('date', '>=', $last30Days)
+            ->where('completed', true)
             ->get()
-            ->map(function ($habit) {
-                $habit->done_today = $habit->isCompletedToday();
-                // Get last 30 days of logs
-                $habit->monthly_logs = HabitLog::where('habit_id', $habit->id)
-                    ->where('date', '>=', today()->subDays(29))
-                    ->where('completed', true)
-                    ->pluck('date')
-                    ->map(fn($d) => Carbon::parse($d)->format('Y-m-d'))
-                    ->toArray();
-                return $habit;
-            });
+            ->groupBy('habit_id');
+
+        $habits = $habits->map(function ($habit) use ($completedTodayIds, $allLogs) {
+            $habit->done_today = isset($completedTodayIds[$habit->id]);
+            $habit->monthly_logs = isset($allLogs[$habit->id])
+                ? $allLogs[$habit->id]->pluck('date')->map(fn($d) => Carbon::parse($d)->format('Y-m-d'))->toArray()
+                : [];
+            return $habit;
+        });
 
         return view('habits.index', compact('habits'));
     }
@@ -60,9 +74,11 @@ class HabitController extends Controller
     {
         $this->authorize('update', $habit);
 
+        $isCompletedNow = !$habit->isCompletedToday();
+
         $log = HabitLog::updateOrCreate(
             ['habit_id' => $habit->id, 'date' => today()->toDateString()],
-            ['user_id' => auth()->id(), 'completed' => !$habit->isCompletedToday()]
+            ['user_id' => auth()->id(), 'completed' => $isCompletedNow]
         );
 
         $habit->recalculateStreak();

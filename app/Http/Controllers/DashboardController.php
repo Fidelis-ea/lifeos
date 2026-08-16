@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\DailyEntry;
 use App\Models\Habit;
+use App\Models\HabitLog;
 use App\Models\Goal;
 use App\Models\TimelineEntry;
 use Illuminate\Http\Request;
@@ -21,15 +22,24 @@ class DashboardController extends Controller
             ->where('date', $today)
             ->first();
 
-        // Habits with today's status
+        // Habits — load all in one query, then bulk-load today's logs
+        // to avoid N+1 (one DB hit per habit for isCompletedToday)
         $habits = Habit::where('user_id', $user->id)
             ->where('is_active', true)
             ->orderBy('order')
-            ->get()
-            ->map(function ($habit) use ($today) {
-                $habit->done_today = $habit->isCompletedToday();
-                return $habit;
-            });
+            ->get();
+
+        // Single query: get all habit IDs completed today
+        $completedTodayIds = HabitLog::whereIn('habit_id', $habits->pluck('id'))
+            ->where('date', $today->toDateString())
+            ->where('completed', true)
+            ->pluck('habit_id')
+            ->flip();
+
+        $habits = $habits->map(function ($habit) use ($completedTodayIds) {
+            $habit->done_today = isset($completedTodayIds[$habit->id]);
+            return $habit;
+        });
 
         $habitsCompletedToday = $habits->where('done_today', true)->count();
         $habitsTotal = $habits->count();
@@ -48,7 +58,7 @@ class DashboardController extends Controller
             ->take(5)
             ->get();
 
-        // Weekly mood average (last 7 days)
+        // Weekly mood average — single query, aggregated in PHP (already efficient)
         $weeklyEntries = DailyEntry::where('user_id', $user->id)
             ->whereBetween('date', [$today->copy()->subDays(6), $today])
             ->get();

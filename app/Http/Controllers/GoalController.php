@@ -13,8 +13,8 @@ class GoalController extends Controller
         $user = auth()->user();
         $goals = Goal::where('user_id', $user->id)
             ->with('tasks')
-            ->orderByRaw("FIELD(status, 'in_progress', 'not_started', 'completed', 'archived')")
-            ->orderByRaw("FIELD(priority, 'high', 'medium', 'low')")
+            ->orderByRaw("CASE status WHEN 'in_progress' THEN 0 WHEN 'not_started' THEN 1 WHEN 'completed' THEN 2 WHEN 'archived' THEN 3 ELSE 4 END")
+            ->orderByRaw("CASE priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 WHEN 'low' THEN 2 ELSE 3 END")
             ->get();
 
         $stats = [
