@@ -8,6 +8,18 @@
         }
     },
     "env": {
+        "APP_KEY": "base64:MIKGz3egHxOrtDtXoGKpzSgahyqMH7xKph1iH2A8I8g=",
+        "APP_ENV": "production",
+        "APP_DEBUG": "true",
+        "LOG_CHANNEL": "stderr",
+        "SESSION_DRIVER": "cookie",
+        "CACHE_STORE": "array",
+        "DB_CONNECTION": "pgsql",
+        "DB_HOST": "db.srbopzaahzfyrlhlonao.supabase.co",
+        "DB_PORT": "5432",
+        "DB_DATABASE": "postgres",
+        "DB_USERNAME": "postgres",
+        "DB_PASSWORD": "DfUlSZaMZ7ybuAuk",
         "APP_CONFIG_CACHE":   "/tmp/config.php",
         "APP_EVENTS_CACHE":   "/tmp/events.php",
         "APP_PACKAGES_CACHE": "/tmp/packages.php",
