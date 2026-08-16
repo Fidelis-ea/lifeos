@@ -1,10 +1,12 @@
 <?php
 
-// Temporarily reveal the FULL exception chain for debugging
-set_error_handler(function ($severity, $message, $file, $line) {
-    error_log("[PHP ERROR] $severity: $message in $file:$line");
-});
+// On Vercel, /tmp is the only writable directory.
+// Create the compiled views directory if it doesn't exist.
+if (!is_dir('/tmp/views')) {
+    mkdir('/tmp/views', 0777, true);
+}
 
+// Forward Vercel requests to the normal Laravel bootstrap
 try {
     require __DIR__ . '/../public/index.php';
 } catch (\Throwable $e) {
@@ -20,7 +22,6 @@ try {
         ];
         $current = $current->getPrevious();
     }
-
     http_response_code(500);
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode(['debug_exception_chain' => $chain], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
