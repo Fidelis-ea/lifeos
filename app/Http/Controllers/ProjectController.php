@@ -50,7 +50,6 @@ class ProjectController extends Controller
 
         $project->tasks()->create([
             'title' => $request->title,
-            'completed' => false,
         ]);
 
         $project->recalculateProgress();
@@ -61,7 +60,7 @@ class ProjectController extends Controller
     public function toggleTask(ProjectTask $task)
     {
         $this->authorize('update', $task->project);
-        $task->update(['completed' => !$task->completed]);
+        $task->update(['completed' => (int) !$task->completed]);
         $task->project->recalculateProgress();
 
         return back();

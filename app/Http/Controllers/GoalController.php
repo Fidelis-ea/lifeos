@@ -73,7 +73,7 @@ class GoalController extends Controller
     public function toggleTask(GoalTask $task)
     {
         $this->authorize('update', $task->goal);
-        $task->update(['completed' => !$task->completed]);
+        $task->update(['completed' => (int) !$task->completed]);
         $task->goal->recalculateProgress();
 
         if (request()->wantsJson()) {

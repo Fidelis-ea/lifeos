@@ -78,7 +78,7 @@ class HabitController extends Controller
 
         $log = HabitLog::updateOrCreate(
             ['habit_id' => $habit->id, 'date' => today()->toDateString()],
-            ['user_id' => auth()->id(), 'completed' => $isCompletedNow]
+            ['user_id' => auth()->id(), 'completed' => (int) $isCompletedNow]
         );
 
         $habit->recalculateStreak();
