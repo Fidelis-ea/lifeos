@@ -13,9 +13,7 @@ use App\Http\Controllers\AchievementController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', function () {
-    return redirect()->route('login');
-});
+Route::redirect('/', '/login');
 
 
 Route::middleware(['auth', 'verified'])->group(function () {

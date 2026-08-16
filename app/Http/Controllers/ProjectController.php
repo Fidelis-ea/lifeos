@@ -13,7 +13,7 @@ class ProjectController extends Controller
         $user = auth()->user();
         $projects = Project::where('user_id', $user->id)
             ->with('tasks')
-            ->orderByRaw("FIELD(status, 'in_progress', 'not_started', 'completed', 'archived')")
+            ->orderByRaw("CASE status WHEN 'in_progress' THEN 0 WHEN 'not_started' THEN 1 WHEN 'completed' THEN 2 WHEN 'archived' THEN 3 ELSE 4 END")
             ->get();
 
         return view('projects.index', compact('projects'));
