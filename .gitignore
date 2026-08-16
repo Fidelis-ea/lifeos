@@ -13,7 +13,7 @@
 /.zed
 /auth.json
 /node_modules
-/public/build
+# /public/build  ← enabled for Vercel deployment (PHP function needs manifest.json)
 /public/hot
 /public/storage
 /storage/*.key
